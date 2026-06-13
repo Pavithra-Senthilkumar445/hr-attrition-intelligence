@@ -1,48 +1,101 @@
-import streamlit as st
-from auth import login_user
-from data import load_data
-from metrics import calculate_kpis
-from charts import render_charts
+import dash
+from dash import html, dcc, Input, Output, State
+import dash_bootstrap_components as dbc
+import pandas as pd
+import plotly.express as px
 
-st.set_page_config(page_title="IBM HR Attrition Portal", layout="wide")
+# ---------------- DATA ----------------
+df = pd.read_csv("data.csv")
 
-# ---------------- Landing Page ----------------
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
+if "Attrition" in df.columns:
+    df["Attrition_Flag"] = df["Attrition"].map({"Yes": 1, "No": 0})
 
-if not st.session_state.logged_in:
-    st.title("IBM HR Attrition Intelligence Portal")
-    st.image("assets/ibm_logo.png", width=200)
+# ---------------- USERS ----------------
+users = {
+    "admin": {"password": "admin123", "role": "admin"},
+    "manager": {"password": "manager123", "role": "manager"},
+    "employee": {"password": "emp123", "role": "employee"}
+}
 
-    st.write("""
-    An interactive analytics platform to understand employee attrition patterns,
-    workforce trends, and department-level insights using IBM HR dataset.
-    """)
+# ---------------- APP ----------------
+app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 
-    if st.button("Login"):
-        st.session_state.logged_in = True
-        st.rerun()
+app.layout = html.Div([
+    dcc.Store(id="session"),
 
-# ---------------- After Login ----------------
-else:
-    user_role = login_user()
+    html.Div(id="page-content")
+])
 
-    df = load_data()
+# ---------------- LOGIN PAGE ----------------
+def login_page():
+    return dbc.Container([
+        html.H2("HR Dashboard Login", className="text-center mt-5"),
 
-    st.sidebar.success(f"Logged in as: {user_role}")
+        dbc.Row([
+            dbc.Col([
+                dbc.Input(id="username", placeholder="Username"),
+                html.Br(),
+                dbc.Input(id="password", type="password", placeholder="Password"),
+                html.Br(),
+                dbc.Button("Login", id="login-btn"),
+                html.Div(id="msg", className="text-danger mt-2")
+            ], width=4)
+        ], justify="center")
+    ])
 
-    # Filter based on role
-    if user_role != "HR Admin":
-        df = df[df["Department"] == user_role]
+# ---------------- DASHBOARDS ----------------
+def admin_dashboard():
+    fig = px.histogram(df, x="Age", title="Employee Age Distribution")
+    return html.Div([
+        html.H2("Admin Dashboard"),
+        dcc.Graph(figure=fig)
+    ])
 
-    kpis = calculate_kpis(df)
+def manager_dashboard():
+    fig = px.pie(df, names="Attrition_Flag", title="Attrition Rate")
+    return html.Div([
+        html.H2("Manager Dashboard"),
+        dcc.Graph(figure=fig)
+    ])
 
-    st.title("Dashboard Overview")
+def employee_dashboard():
+    return html.Div([
+        html.H2("Employee Dashboard"),
+        html.P("Welcome to HR Analytics Portal")
+    ])
 
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Total Employees", kpis["total_employees"])
-    col2.metric("Attrition Count", kpis["attrition_count"])
-    col3.metric("Attrition Rate (%)", kpis["attrition_rate"])
-    col4.metric("Avg Age", kpis["avg_age"])
+# ---------------- ROUTING ----------------
+@app.callback(
+    Output("page-content", "children"),
+    Input("session", "data")
+)
+def route(session):
+    if not session:
+        return login_page()
 
-    render_charts(df)
+    role = session.get("role")
+
+    if role == "admin":
+        return admin_dashboard()
+    elif role == "manager":
+        return manager_dashboard()
+    else:
+        return employee_dashboard()
+
+# ---------------- LOGIN LOGIC ----------------
+@app.callback(
+    Output("session", "data"),
+    Output("msg", "children"),
+    Input("login-btn", "n_clicks"),
+    State("username", "value"),
+    State("password", "value"),
+    prevent_initial_call=True
+)
+def login(n, u, p):
+    if u in users and users[u]["password"] == p:
+        return {"role": users[u]["role"]}, ""
+    return None, "Invalid credentials"
+
+# ---------------- RUN ----------------
+if __name__ == "__main__":
+    app.run_server(debug=True)
