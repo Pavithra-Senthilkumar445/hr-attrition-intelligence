@@ -1,6 +1,6 @@
 import streamlit as st
 from auth import login_user
-from data_loader import load_data
+from data import load_data
 from metrics import calculate_kpis
 from charts import render_charts
 
