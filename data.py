@@ -1,8 +1,3 @@
-# data.py
-# Reads REAL data from Unity Catalog Volume using Databricks SDK
-# Silver CSV → role based filtering (1470 individual rows)
-# Gold CSVs  → overall KPI cards (pre-aggregated for HR Admin)
-
 import pandas as pd
 from io import BytesIO
 
@@ -18,31 +13,22 @@ def _read_csv(filename: str) -> pd.DataFrame:
         print(f"ERROR reading {filename}: {e}")
         return pd.DataFrame()
 
-# Load at app startup — real data from Volume
 SILVER        = _read_csv("silver.csv")
 GOLD_OVERVIEW = _read_csv("gold_overview.csv")
 
-print(f"Silver loaded     : {len(SILVER)} rows")
-print(f"Gold overview     : {len(GOLD_OVERVIEW)} rows")
+print(f"Silver loaded  : {len(SILVER)} rows")
+print(f"Gold overview  : {len(GOLD_OVERVIEW)} rows")
 
-# All unique job roles for filter dropdown
-ALL_JOB_ROLES = sorted(SILVER["jobrole"].dropna().unique().tolist())
-
-# All age groups for filter pills
 AGE_GROUPS = ["18-25", "26-35", "36-45", "46-55", "55+"]
 
 
 def get_data_for_role(
-    role       : str,
-    department : str,
-    age_filter : str  = "All",
-    job_filter : str  = "All"
+    role        : str,
+    department  : str,
+    age_filter  : str = "All",
+    active_dept : str = "All"
 ) -> dict:
-    """
-    Filters Silver table by role + department + age + job role.
-    Calculates real KPIs from filtered rows.
-    """
-    # Step 1 — Department filter
+    # Step 1 — Role department filter
     if department == "All":
         df = SILVER.copy()
     else:
@@ -50,7 +36,11 @@ def get_data_for_role(
             SILVER["department"].str.strip() == department.strip()
         ].copy()
 
-    # Step 2 — Age group filter
+    # Step 2 — Admin dept pill filter
+    if department == "All" and active_dept != "All":
+        df = df[df["department"].str.strip() == active_dept.strip()].copy()
+
+    # Step 3 — Age group filter
     df["age_group"] = pd.cut(
         df["age"],
         bins   = [17, 25, 35, 45, 55, 100],
@@ -59,14 +49,10 @@ def get_data_for_role(
     if age_filter != "All":
         df = df[df["age_group"].astype(str) == age_filter].copy()
 
-    # Step 3 — Job role filter
-    if job_filter != "All":
-        df = df[df["jobrole"] == job_filter].copy()
-
     if len(df) == 0:
         return _empty_data()
 
-    # Step 4 — Calculate KPIs
+    # Step 4 — KPIs
     total_employees    = len(df)
     total_attrition    = int(df["attrition_flag"].sum())
     attrition_rate     = round((total_attrition / total_employees) * 100, 2)
@@ -74,26 +60,26 @@ def get_data_for_role(
     avg_tenure         = round(df["yearsatcompany"].mean(), 1)
     avg_age            = round(df["age"].mean(), 1)
 
-    # Step 5 — Attrition by department
+    # Step 5 — Dept analysis
     dept_analysis = df.groupby("department").agg(
         total_employees = ("employeenumber", "count"),
-        attrition_count = ("attrition_flag",  "sum")
+        attrition_count = ("attrition_flag", "sum")
     ).reset_index()
     dept_analysis["attrition_rate"] = round(
         dept_analysis["attrition_count"] / dept_analysis["total_employees"] * 100, 2
     )
 
-    # Step 6 — Attrition by age group
+    # Step 6 — Age analysis
     age_analysis = df.groupby("age_group", observed=True).agg(
         total_employees = ("employeenumber", "count"),
-        attrition_count = ("attrition_flag",  "sum")
+        attrition_count = ("attrition_flag", "sum")
     ).reset_index()
     age_analysis["age_group"]      = age_analysis["age_group"].astype(str)
     age_analysis["attrition_rate"] = round(
         age_analysis["attrition_count"] / age_analysis["total_employees"] * 100, 2
     )
 
-    # Step 7 — Attrition by income band
+    # Step 7 — Income analysis
     df["income_band"] = pd.cut(
         df["monthlyincome"],
         bins   = [0, 3000, 6000, 10000, 999999],
@@ -101,45 +87,68 @@ def get_data_for_role(
     )
     income_analysis = df.groupby("income_band", observed=True).agg(
         total_employees = ("employeenumber", "count"),
-        attrition_count = ("attrition_flag",  "sum")
+        attrition_count = ("attrition_flag", "sum")
     ).reset_index()
-    income_analysis["income_band"]     = income_analysis["income_band"].astype(str)
-    income_analysis["attrition_rate"]  = round(
+    income_analysis["income_band"]    = income_analysis["income_band"].astype(str)
+    income_analysis["attrition_rate"] = round(
         income_analysis["attrition_count"] / income_analysis["total_employees"] * 100, 2
     )
 
-    # Step 8 — Attrition by job satisfaction
+    # Step 8 — Satisfaction analysis
     sat_map   = {1: "Low", 2: "Medium", 3: "High", 4: "Very High"}
     sat_order = ["Low", "Medium", "High", "Very High"]
     df["satisfaction_label"] = df["jobsatisfaction"].map(sat_map)
     sat_analysis = df.groupby("satisfaction_label").agg(
         total_employees = ("employeenumber", "count"),
-        attrition_count = ("attrition_flag",  "sum")
+        attrition_count = ("attrition_flag", "sum")
     ).reset_index()
     sat_analysis["attrition_rate"] = round(
         sat_analysis["attrition_count"] / sat_analysis["total_employees"] * 100, 2
     )
     sat_analysis["satisfaction_label"] = pd.Categorical(
-        sat_analysis["satisfaction_label"],
-        categories = sat_order,
-        ordered    = True
+        sat_analysis["satisfaction_label"], categories=sat_order, ordered=True
     )
     sat_analysis = sat_analysis.sort_values("satisfaction_label")
 
-    # Step 9 — Key insights
+    # Step 9 — Plain English insights
     insights = []
+
     if len(dept_analysis) > 0:
-        top_dept = dept_analysis.sort_values("attrition_rate", ascending=False).iloc[0]
-        insights.append(f"🔴 {top_dept['department']} has highest attrition at {top_dept['attrition_rate']}%")
+        top = dept_analysis.sort_values("attrition_rate", ascending=False).iloc[0]
+        low = dept_analysis.sort_values("attrition_rate", ascending=True).iloc[0]
+        insights.append(
+            f"🔴 The {top['department']} department has the highest employee "
+            f"leaving rate — {top['attrition_rate']}% of its employees have left "
+            f"the company. The {low['department']} department has the lowest "
+            f"leaving rate at {low['attrition_rate']}%."
+        )
+
     if len(age_analysis) > 0:
-        top_age = age_analysis.sort_values("attrition_rate", ascending=False).iloc[0]
-        insights.append(f"👥 Age group {top_age['age_group']} has highest turnover at {top_age['attrition_rate']}%")
+        top = age_analysis.sort_values("attrition_rate", ascending=False).iloc[0]
+        insights.append(
+            f"👥 Employees aged {top['age_group']} are leaving the most — "
+            f"{top['attrition_rate']}% of this age group has left. "
+            f"The company may need better career growth opportunities "
+            f"for this age group to improve retention."
+        )
+
     if len(income_analysis) > 0:
-        top_inc = income_analysis.sort_values("attrition_rate", ascending=False).iloc[0]
-        insights.append(f"💰 Employees earning {top_inc['income_band']} leave most at {top_inc['attrition_rate']}%")
+        top = income_analysis.sort_values("attrition_rate", ascending=False).iloc[0]
+        insights.append(
+            f"💰 Employees earning ${top['income_band']} per month are leaving "
+            f"at the highest rate — {top['attrition_rate']}% have left. "
+            f"Reviewing and improving salaries in this range could help "
+            f"the company retain more employees."
+        )
+
     if len(sat_analysis) > 0:
-        top_sat = sat_analysis.sort_values("attrition_rate", ascending=False).iloc[0]
-        insights.append(f"😞 {top_sat['satisfaction_label']} satisfaction employees leave most at {top_sat['attrition_rate']}%")
+        top = sat_analysis.sort_values("attrition_rate", ascending=False).iloc[0]
+        insights.append(
+            f"😟 Employees who feel '{top['satisfaction_label']}' satisfaction "
+            f"at work are leaving at {top['attrition_rate']}% — the highest rate. "
+            f"Improving the work environment and job satisfaction could "
+            f"significantly reduce employee turnover."
+        )
 
     return {
         "total_employees"    : total_employees,
