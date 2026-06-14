@@ -1,3 +1,4 @@
+from flask import session
 import pandas as pd
 import dash
 from dash import dcc, html, Input, Output, State, no_update, ctx, ALL
@@ -35,6 +36,8 @@ app = dash.Dash(
     title="IBM HR Attrition Intelligence"
 )
 server = app.server
+
+server.secret_key = "hr-attrition-intelligence-secret-key"
 
 app.layout = html.Div([
     dcc.Store(id="user-store",        storage_type="local"),
@@ -584,36 +587,46 @@ def render_page(pathname, theme, age_f, dept_f, user):
     age_f = age_f or "All"
     dept_f = dept_f or "All"
 
+    saved_user = user or session.get("user")
+
     if pathname == "/login":
         return login_layout(theme)
 
     if pathname == "/dashboard":
-        if user:
+        if saved_user:
             return dashboard_layout(
-                user,
+                saved_user,
                 theme,
                 age_filter=age_f,
                 active_dept=dept_f
             )
+
+        if ctx.triggered_id in ["theme-store", "age-filter-store", "dept-filter-store"]:
+            return no_update
+
         return login_layout(theme)
 
     return landing_layout(theme)
 
 @app.callback(
-    Output("user-store",    "data"),
-    Output("login-error",   "children"),
-    Output("url",           "pathname"),
-    Input("login-btn",      "n_clicks"),
-    State("login-email",    "value"),
+    Output("user-store", "data"),
+    Output("login-error", "children"),
+    Output("url", "pathname"),
+    Input("login-btn", "n_clicks"),
+    State("login-email", "value"),
     State("login-password", "value"),
     prevent_initial_call=True
 )
 def handle_login(n, email, password):
     if not email or not password:
         return no_update, "Please enter email and password.", no_update
+
     user = login(email, password)
+
     if user:
+        session["user"] = user
         return user, "", "/dashboard"
+
     return no_update, "Invalid email or password.", no_update
 
 
@@ -631,12 +644,13 @@ def toggle_password(n, current):
 
 
 @app.callback(
-    Output("user-store", "data",     allow_duplicate=True),
-    Output("url",        "pathname", allow_duplicate=True),
-    Input("logout-btn",  "n_clicks"),
+    Output("user-store", "data", allow_duplicate=True),
+    Output("url", "pathname", allow_duplicate=True),
+    Input("logout-btn", "n_clicks"),
     prevent_initial_call=True
 )
 def logout(n):
+    session.pop("user", None)
     return None, "/"
 
 
