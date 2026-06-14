@@ -736,7 +736,7 @@ def dashboard_layout(
 
     # Chart 1 — Dept horizontal bar
 
-        google_colors = ["#4285F4", "#DB4437", "#F4B400", "#0F9D58", "#AB47BC"]
+    google_colors = ["#4285F4", "#DB4437", "#F4B400", "#0F9D58", "#AB47BC"]
     grid_color = "#E8EAED" if theme == "light" else "#30363D"
 
     def google_layout(fig, height=360, legend=False):
