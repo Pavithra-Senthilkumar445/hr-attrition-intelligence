@@ -650,7 +650,9 @@ def toggle_password(n, current):
     prevent_initial_call=True
 )
 def logout(n):
-    session.pop("user", None)
+    if not n:
+        return no_update, no_update
+
     return None, "/"
 
 
