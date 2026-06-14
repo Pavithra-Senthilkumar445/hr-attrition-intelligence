@@ -573,22 +573,30 @@ def dashboard_layout(
 
 @app.callback(
     Output("page-content", "children"),
-    Input("url",           "pathname"),
-    Input("theme-store",   "data"),
-    Input("age-filter-store",  "data"),
+    Input("url", "pathname"),
+    Input("theme-store", "data"),
+    Input("age-filter-store", "data"),
     Input("dept-filter-store", "data"),
-    State("user-store",    "data"),
+    Input("user-store", "data"),
 )
 def render_page(pathname, theme, age_f, dept_f, user):
     theme = theme or "light"
+    age_f = age_f or "All"
+    dept_f = dept_f or "All"
+
     if pathname == "/login":
         return login_layout(theme)
-    if pathname == "/dashboard" and user:
-        return dashboard_layout(user, theme,
-                                age_filter=age_f or "All",
-                                active_dept=dept_f or "All")
-    if pathname == "/dashboard" and not user:
+
+    if pathname == "/dashboard":
+        if user:
+            return dashboard_layout(
+                user,
+                theme,
+                age_filter=age_f,
+                active_dept=dept_f
+            )
         return login_layout(theme)
+
     return landing_layout(theme)
 
 
