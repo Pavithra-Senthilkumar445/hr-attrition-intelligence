@@ -2,6 +2,7 @@
 # Fixes: dark/light theme, chart popups, filters,
 #        4 roles, axis labels, insights, role badge
 
+from data import get_data_for_role, GOLD_OVERVIEW, ALL_JOB_ROLES, AGE_GROUPS, SILVER
 import dash
 from dash import dcc, html, Input, Output, State, no_update, ctx
 import dash_bootstrap_components as dbc
