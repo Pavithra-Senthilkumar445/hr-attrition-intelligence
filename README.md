@@ -1,14 +1,14 @@
-🏢 IBM HR Attrition Intelligence Portal
+##🏢 IBM HR Attrition Intelligence Portal
 
    An end-to-end HR analytics platform built on **Databricks Medallion Architecture** with role-based access control, real-time data filtering, and interactive          visualizations using IBM HR Employee Attrition data.
 
-📌 Project Overview
+##📌 Project Overview
 
 This project analyses **why employees leave a company** using the IBM HR Analytics Employee Attrition dataset. It is built as a production-grade data pipeline with a live interactive dashboard — demonstrating both **Data Engineering** and **Data Analytics** skills.
 
 The platform allows HR leaders and department managers to explore attrition patterns across departments, age groups, salary bands, and job satisfaction levels — all through a secure role-based login system.
 
-🎯 Business Problem
+##🎯 Business Problem
 
 > *"We are losing too many employees every year. Can you tell us who is leaving, from which department, and why?"*
 
@@ -23,28 +23,18 @@ This dashboard answers:
 
 ## 🏗️ Architecture — Medallion Pipeline
 Kaggle CSV (IBM HR Dataset)
-          
+            ↓
 Unity Catalog Volume (Raw file storage)
-
-↓
-
+            ↓
 🥉 Bronze Layer  →  Raw Delta table (audit trail, metadata columns)
-
-↓
-
+            ↓
 🥈 Silver Layer  →  Cleaned + typed data (PySpark transformations)
-
-↓
-
+            ↓
 🥇 Gold Layer    →  Aggregated KPI tables (Spark SQL)
-
-↓
-
+            ↓
 Dash Application →  Role-based interactive dashboard
-
-↓
-
-GitHub           →  Version controlled codebase
+            ↓
+GitHub →  Version controlled codebase
 
 ---
 
@@ -194,18 +184,6 @@ Dash supports role-based login, dynamic filtering, theme toggling, and chart pop
 - **Younger employees (18-25)** leave the most at **35.77%**
 - **Low salary employees ($1k-$3k/month)** have **28.61%** attrition rate
 - **Low job satisfaction** employees leave at **22.84%** — highest satisfaction group
-
----
-
-## 🚀 Production Recommendations
-
-In a production environment this project would include:
-
-- **Databricks Workflows** scheduled daily to refresh Bronze → Silver → Gold pipeline
-- **Incremental loading** using `.mode("append")` instead of overwrite
-- **SQL Warehouse** connection for live Delta table queries
-- **Unity Catalog** governance with column-level access control
-- **MLflow** integration for predicting employee attrition risk
 
 ---
 
