@@ -1,7 +1,6 @@
-# app.py
-# IBM HR Attrition Intelligence Portal
-# Role based access: HR Admin, Sales Manager, R&D Manager
-# Real data from Unity Catalog Volume via Databricks SDK
+# app.py — IBM HR Attrition Intelligence Portal
+# Fixes: dark/light theme, chart popups, filters,
+#        4 roles, axis labels, insights, role badge
 
 import dash
 from dash import dcc, html, Input, Output, State, no_update, ctx
@@ -9,29 +8,36 @@ import dash_bootstrap_components as dbc
 import plotly.express as px
 import plotly.graph_objects as go
 from auth import login
-from data import get_data_for_role, GOLD_OVERVIEW
+from data import get_data_for_role, GOLD_OVERVIEW, ALL_JOB_ROLES, AGE_GROUPS
 
-# ── Chart toolbar config — removes zoom/pan ──────────────
+# ── No zoom/pan toolbar — but keep clicks enabled ────────
 CFG = {"displayModeBar": False, "scrollZoom": False}
 
-# ── Theme ────────────────────────────────────────────────
+# ── Themes ───────────────────────────────────────────────
 THEMES = {
     "light": {
-        "bg"     : "#F0F4F8",
-        "card"   : "#FFFFFF",
-        "text"   : "#212529",
-        "border" : "#DEE2E6",
-        "navbar" : "#FFFFFF",
-        "muted"  : "#6C757D",
+        "bg"    : "#F0F4F8",
+        "card"  : "#FFFFFF",
+        "text"  : "#212529",
+        "border": "#DEE2E6",
+        "muted" : "#6C757D",
+        "navbar": "#FFFFFF",
     },
     "dark": {
-        "bg"     : "#0D1117",
-        "card"   : "#161B22",
-        "text"   : "#E6EDF3",
-        "border" : "#30363D",
-        "navbar" : "#161B22",
-        "muted"  : "#8B949E",
+        "bg"    : "#0D1117",
+        "card"  : "#161B22",
+        "text"  : "#E6EDF3",
+        "border": "#30363D",
+        "muted" : "#8B949E",
+        "navbar": "#161B22",
     }
+}
+
+ROLE_COLORS = {
+    "HR Admin"     : "danger",
+    "HR Manager"   : "warning",
+    "Sales Manager": "success",
+    "R&D Manager"  : "primary",
 }
 
 # ── App init ─────────────────────────────────────────────
@@ -46,159 +52,90 @@ app = dash.Dash(
 )
 server = app.server
 
-# ── Root layout ──────────────────────────────────────────
 app.layout = html.Div([
     dcc.Store(id="user-store",  storage_type="session"),
-    dcc.Store(id="theme-store", data="light",  storage_type="session"),
+    dcc.Store(id="theme-store", storage_type="session", data="light"),
     dcc.Location(id="url", refresh=False),
     html.Div(id="page-content")
 ])
 
 
 # ════════════════════════════════════════════════════════
-# SCREEN 1 — LANDING PAGE
+# LANDING PAGE
 # ════════════════════════════════════════════════════════
 def landing_layout(theme="light"):
     t = THEMES[theme]
     return html.Div([
-        # Hero section
         html.Div([
-            # IBM badge
-            html.Div([
-                html.Span("IBM", style={
-                    "background"    : "#1F70C1",
-                    "color"         : "#FFFFFF",
-                    "padding"       : "8px 24px",
-                    "borderRadius"  : "6px",
-                    "fontSize"      : "28px",
-                    "fontWeight"    : "900",
-                    "letterSpacing" : "4px",
-                    "display"       : "inline-block",
-                    "marginBottom"  : "20px",
-                }),
-            ], style={"textAlign": "center"}),
-
-            html.H1(
-                "HR Attrition Intelligence Portal",
-                style={
-                    "textAlign"   : "center",
-                    "fontWeight"  : "700",
-                    "fontSize"    : "32px",
-                    "color"       : t["text"],
-                    "marginBottom": "12px",
-                }
-            ),
-
+            html.Div("IBM", style={
+                "background"   : "#1F70C1", "color": "#FFFFFF",
+                "padding"      : "8px 24px", "borderRadius": "6px",
+                "fontSize"     : "28px", "fontWeight": "900",
+                "letterSpacing": "4px", "display": "inline-block",
+                "marginBottom" : "20px",
+            }),
+            html.H1("HR Attrition Intelligence Portal", style={
+                "textAlign": "center", "fontWeight": "700",
+                "fontSize" : "32px", "color": t["text"],
+                "marginBottom": "4px",
+            }),
+            html.P("IBM Employee Attrition Dataset", style={
+                "textAlign": "center", "color": "#1F70C1",
+                "fontWeight": "600", "marginBottom": "12px"
+            }),
             html.P(
                 "An interactive analytics platform to understand employee "
                 "attrition patterns, workforce trends, and department-level "
                 "insights using IBM HR data.",
                 style={
-                    "textAlign"    : "center",
-                    "color"        : t["muted"],
-                    "fontSize"     : "16px",
-                    "maxWidth"     : "600px",
-                    "margin"       : "0 auto 32px auto",
-                    "lineHeight"   : "1.7",
+                    "textAlign"  : "center", "color": t["muted"],
+                    "fontSize"   : "16px", "maxWidth": "600px",
+                    "margin"     : "0 auto 32px auto", "lineHeight": "1.7",
                 }
             ),
-
-            # Buttons
             html.Div([
                 dbc.Button([
-                    html.I(className="bi bi-lock-fill me-2"),
-                    "Login"
-                ],
-                    id       = "landing-login-btn",
-                    color    = "primary",
-                    size     = "lg",
-                    className= "me-3",
-                    href     = "/login",
-                    style    = {"padding": "12px 32px", "fontWeight": "600"}
-                ),
+                    html.I(className="bi bi-lock-fill me-2"), "Login"
+                ], href="/login", color="primary", size="lg",
+                   className="me-3",
+                   style={"padding": "12px 32px", "fontWeight": "600"}),
                 dbc.Button([
-                    html.I(className="bi bi-info-circle me-2"),
-                    "About Dataset"
-                ],
-                    id        = "about-btn",
-                    color     = "outline-secondary",
-                    size      = "lg",
-                    style     = {"padding": "12px 32px"}
-                ),
+                    html.I(className="bi bi-info-circle me-2"), "About Dataset"
+                ], id="about-btn", color="outline-secondary", size="lg",
+                   style={"padding": "12px 32px"}),
             ], style={"textAlign": "center", "marginBottom": "48px"}),
 
-            # Dataset info cards
             dbc.Row([
-                dbc.Col(html.Div([
-                    html.H4("1,470", style={"color": "#1F70C1", "fontWeight": "700"}),
-                    html.P("Total Employees", style={"color": t["muted"], "margin": 0})
-                ], style={
-                    "background"   : t["card"],
-                    "borderRadius" : "12px",
-                    "padding"      : "24px",
-                    "textAlign"    : "center",
-                    "border"       : f"1px solid {t['border']}"
-                }), width=3),
-
-                dbc.Col(html.Div([
-                    html.H4("35", style={"color": "#1D9E75", "fontWeight": "700"}),
-                    html.P("Data Attributes", style={"color": t["muted"], "margin": 0})
-                ], style={
-                    "background"   : t["card"],
-                    "borderRadius" : "12px",
-                    "padding"      : "24px",
-                    "textAlign"    : "center",
-                    "border"       : f"1px solid {t['border']}"
-                }), width=3),
-
-                dbc.Col(html.Div([
-                    html.H4("3", style={"color": "#D85A30", "fontWeight": "700"}),
-                    html.P("Departments", style={"color": t["muted"], "margin": 0})
-                ], style={
-                    "background"   : t["card"],
-                    "borderRadius" : "12px",
-                    "padding"      : "24px",
-                    "textAlign"    : "center",
-                    "border"       : f"1px solid {t['border']}"
-                }), width=3),
-
-                dbc.Col(html.Div([
-                    html.H4("16.1%", style={"color": "#534AB7", "fontWeight": "700"}),
-                    html.P("Overall Attrition", style={"color": t["muted"], "margin": 0})
-                ], style={
-                    "background"   : t["card"],
-                    "borderRadius" : "12px",
-                    "padding"      : "24px",
-                    "textAlign"    : "center",
-                    "border"       : f"1px solid {t['border']}"
-                }), width=3),
+                dbc.Col(_stat_card("1,470", "Total Employees",    "#1F70C1", t), width=3),
+                dbc.Col(_stat_card("35",    "Data Attributes",    "#1D9E75", t), width=3),
+                dbc.Col(_stat_card("3",     "Departments",        "#D85A30", t), width=3),
+                dbc.Col(_stat_card("16.1%", "Overall Attrition",  "#534AB7", t), width=3),
             ], className="g-3 justify-content-center mb-4"),
 
-            # About Dataset modal trigger
             dbc.Modal([
                 dbc.ModalHeader(dbc.ModalTitle("About IBM HR Analytics Dataset")),
                 dbc.ModalBody([
-                    html.P([
-                        html.Strong("Dataset: "),
-                        "IBM HR Analytics Employee Attrition & Performance"
-                    ]),
-                    html.P([
-                        html.Strong("Source: "),
-                        "Kaggle — IBM HR Analytics Employee Attrition Dataset"
-                    ]),
-                    html.P([
-                        html.Strong("Purpose: "),
-                        "This dataset was created by IBM data scientists to understand "
-                        "what factors lead to employee attrition."
-                    ]),
-                    html.P([
-                        html.Strong("Size: "),
-                        "1,470 employees × 35 attributes"
-                    ]),
-                    html.P([
-                        html.Strong("Key columns: "),
-                        "Age, Department, Monthly Income, Job Satisfaction, "
-                        "Years at Company, Attrition (Yes/No)"
+                    html.P([html.Strong("Dataset: "),
+                            "IBM HR Analytics Employee Attrition & Performance"]),
+                    html.P([html.Strong("Source: "),
+                            "Kaggle — IBM HR Analytics Employee Attrition Dataset"]),
+                    html.P([html.Strong("Purpose: "),
+                            "Created by IBM data scientists to understand what "
+                            "factors lead to employee attrition."]),
+                    html.P([html.Strong("Size: "), "1,470 employees × 35 attributes"]),
+                    html.P([html.Strong("Key columns: ")]),
+                    html.Ul([
+                        html.Li("Age — employee age in years"),
+                        html.Li("Department — Sales, Human Resources, Research & Development"),
+                        html.Li("Monthly Income — salary in USD"),
+                        html.Li("Job Satisfaction — rated 1 (Low) to 4 (Very High)"),
+                        html.Li("Years at Company — employee tenure"),
+                        html.Li([
+                            html.Strong("Attrition — "),
+                            "Yes means the employee LEFT the company. "
+                            "No means they are STILL working. "
+                            "This is our key analysis column."
+                        ]),
                     ]),
                     dbc.Alert(
                         "Dataset Source: IBM HR Analytics Employee Attrition Dataset",
@@ -211,244 +148,180 @@ def landing_layout(theme="light"):
             ], id="about-modal", is_open=False),
 
         ], style={
-            "maxWidth" : "900px",
-            "margin"   : "0 auto",
-            "padding"  : "60px 20px",
+            "maxWidth": "900px", "margin": "0 auto", "padding": "60px 20px",
+            "textAlign": "center"
         }),
-
-        # Footer
-        html.Footer([
-            html.P(
-                "Dataset Source: IBM HR Analytics Employee Attrition Dataset | "
-                "Built on Databricks Medallion Architecture",
-                style={
-                    "textAlign"  : "center",
-                    "color"      : t["muted"],
-                    "fontSize"   : "13px",
-                    "padding"    : "20px",
-                    "borderTop"  : f"1px solid {t['border']}",
-                }
-            )
-        ])
+        html.Footer(html.P(
+            "Dataset Source: IBM HR Analytics Employee Attrition Dataset | "
+            "Built on Databricks Medallion Architecture",
+            style={"textAlign": "center", "color": t["muted"],
+                   "fontSize": "13px", "padding": "20px",
+                   "borderTop": f"1px solid {t['border']}"}
+        ))
     ], style={"background": t["bg"], "minHeight": "100vh"})
 
 
+def _stat_card(value, label, color, t):
+    return html.Div([
+        html.H4(value, style={"color": color, "fontWeight": "700"}),
+        html.P(label,  style={"color": t["muted"], "margin": 0})
+    ], style={
+        "background"  : t["card"], "borderRadius": "12px",
+        "padding"     : "24px", "textAlign": "center",
+        "border"      : f"1px solid {t['border']}"
+    })
+
+
 # ════════════════════════════════════════════════════════
-# SCREEN 2 — LOGIN PAGE
+# LOGIN PAGE
 # ════════════════════════════════════════════════════════
 def login_layout(theme="light"):
     t = THEMES[theme]
     return html.Div([
         html.Div([
-            # Back to home
-            html.A([
-                html.I(className="bi bi-arrow-left me-2"),
-                "Back to Home"
-            ], href="/", style={
-                "color"          : t["muted"],
-                "textDecoration" : "none",
-                "fontSize"       : "14px",
-                "display"        : "block",
-                "marginBottom"   : "24px"
-            }),
-
-            # IBM badge
+            html.A([html.I(className="bi bi-arrow-left me-2"), "Back to Home"],
+                   href="/", style={
+                       "color": t["muted"], "textDecoration": "none",
+                       "fontSize": "14px", "display": "block",
+                       "marginBottom": "24px"
+                   }),
             html.Div("IBM", style={
-                "background"    : "#1F70C1",
-                "color"         : "#FFFFFF",
-                "padding"       : "6px 18px",
-                "borderRadius"  : "6px",
-                "fontSize"      : "20px",
-                "fontWeight"    : "900",
-                "letterSpacing" : "3px",
-                "display"       : "inline-block",
-                "marginBottom"  : "12px",
+                "background"   : "#1F70C1", "color": "#FFFFFF",
+                "padding"      : "6px 18px", "borderRadius": "6px",
+                "fontSize"     : "20px", "fontWeight": "900",
+                "letterSpacing": "3px", "display": "inline-block",
+                "marginBottom" : "12px",
             }),
+            html.H4("HR Attrition Intelligence Portal",
+                    style={"fontWeight": "600", "color": t["text"],
+                           "marginBottom": "4px"}),
+            html.P("IBM Employee Attrition Dataset",
+                   style={"color": "#1F70C1", "fontWeight": "500",
+                          "marginBottom": "28px", "fontSize": "14px"}),
 
-            html.H4(
-                "HR Attrition Intelligence Portal",
-                style={"fontWeight": "600", "marginBottom": "4px", "color": t["text"]}
-            ),
-            html.P(
-                "IBM Employee Attrition Dataset",
-                style={"color": t["muted"], "marginBottom": "28px", "fontSize": "14px"}
-            ),
+            dbc.Label("Email Address",
+                      style={"fontWeight": "500", "color": t["text"]}),
+            dbc.Input(id="login-email", type="email",
+                      placeholder="Enter your email", className="mb-3",
+                      style={"background": t["card"], "color": t["text"]}),
 
-            # Email
-            dbc.Label("Email Address", style={"fontWeight": "500", "color": t["text"]}),
-            dbc.Input(
-                id          = "login-email",
-                type        = "email",
-                placeholder = "Enter your email",
-                className   = "mb-3",
-                style       = {"background": t["card"], "color": t["text"]}
-            ),
-
-            # Password with show/hide
-            dbc.Label("Password", style={"fontWeight": "500", "color": t["text"]}),
+            dbc.Label("Password",
+                      style={"fontWeight": "500", "color": t["text"]}),
             html.Div([
-                dbc.Input(
-                    id          = "login-password",
-                    type        = "password",
-                    placeholder = "Enter your password",
-                    style       = {
-                        "paddingRight" : "48px",
-                        "background"   : t["card"],
-                        "color"        : t["text"]
-                    }
-                ),
-                html.I(
-                    id        = "toggle-pwd",
-                    className = "bi bi-eye",
-                    n_clicks  = 0,
-                    style     = {
-                        "position"  : "absolute",
-                        "right"     : "14px",
-                        "top"       : "50%",
-                        "transform" : "translateY(-50%)",
-                        "cursor"    : "pointer",
-                        "color"     : t["muted"],
-                        "fontSize"  : "18px",
-                        "zIndex"    : "10",
-                    }
-                ),
+                dbc.Input(id="login-password", type="password",
+                          placeholder="Enter your password",
+                          style={"paddingRight": "48px",
+                                 "background": t["card"],
+                                 "color": t["text"]}),
+                html.I(id="toggle-pwd", className="bi bi-eye",
+                       n_clicks=0, style={
+                           "position" : "absolute", "right": "14px",
+                           "top"      : "50%", "transform": "translateY(-50%)",
+                           "cursor"   : "pointer", "color": t["muted"],
+                           "fontSize" : "18px", "zIndex": "10",
+                       }),
             ], style={"position": "relative", "marginBottom": "8px"}),
 
-            # Error
-            html.Div(
-                id    = "login-error",
-                style = {
-                    "color"        : "#DC3545",
-                    "fontSize"     : "13px",
-                    "marginBottom" : "16px",
-                    "minHeight"    : "20px"
-                }
-            ),
+            html.Div(id="login-error",
+                     style={"color": "#DC3545", "fontSize": "13px",
+                            "marginBottom": "16px", "minHeight": "20px"}),
 
-            # Login button
             dbc.Button(
                 [html.I(className="bi bi-box-arrow-in-right me-2"), "Sign In"],
-                id        = "login-btn",
-                color     = "primary",
-                className = "w-100 mb-4",
-                style     = {"padding": "10px", "fontWeight": "600"}
+                id="login-btn", color="primary", className="w-100 mb-4",
+                style={"padding": "10px", "fontWeight": "600"}
             ),
 
             html.Hr(style={"borderColor": t["border"]}),
 
-            # Demo credentials
-            html.P(
-                "Demo Credentials",
-                style={"fontWeight": "600", "color": t["text"],
-                       "fontSize": "14px", "marginBottom": "10px"}
-            ),
+            html.P("Demo Credentials",
+                   style={"fontWeight": "600", "color": t["text"],
+                          "fontSize": "14px", "marginBottom": "10px"}),
             html.Div([
-                html.Div([
-                    dbc.Badge("HR Admin",      color="danger",  className="me-2"),
-                    html.Small("admin@hrapp.com / Admin@123",
-                               style={"color": t["muted"]})
-                ], className="mb-2"),
-                html.Div([
-                    dbc.Badge("Sales Manager", color="success", className="me-2"),
-                    html.Small("sales@hrapp.com / Sales@123",
-                               style={"color": t["muted"]})
-                ], className="mb-2"),
-                html.Div([
-                    dbc.Badge("R&D Manager",   color="primary", className="me-2"),
-                    html.Small("rd@hrapp.com / RnD@123",
-                               style={"color": t["muted"]})
-                ]),
+                _cred_row("HR Admin",      "danger",  "admin@hrapp.com / Admin@123",  t),
+                _cred_row("HR Manager",    "warning", "hr@hrapp.com / HR@123",        t),
+                _cred_row("Sales Manager", "success", "sales@hrapp.com / Sales@123",  t),
+                _cred_row("R&D Manager",   "primary", "rd@hrapp.com / RnD@123",       t),
             ], style={
-                "background"   : t["bg"],
-                "padding"      : "14px",
-                "borderRadius" : "8px",
-                "border"       : f"1px solid {t['border']}"
+                "background"  : t["bg"], "padding": "14px",
+                "borderRadius": "8px", "border": f"1px solid {t['border']}"
             }),
 
-            # Footer note
-            html.P(
-                "Dataset Source: IBM HR Analytics Employee Attrition Dataset",
-                style={
-                    "textAlign"  : "center",
-                    "color"      : t["muted"],
-                    "fontSize"   : "12px",
-                    "marginTop"  : "20px"
-                }
-            )
-
+            html.P("Dataset Source: IBM HR Analytics Employee Attrition Dataset",
+                   style={"textAlign": "center", "color": t["muted"],
+                          "fontSize": "12px", "marginTop": "20px"})
         ], style={
-            "maxWidth"     : "420px",
-            "margin"       : "40px auto",
-            "padding"      : "40px",
-            "background"   : t["card"],
-            "borderRadius" : "16px",
-            "boxShadow"    : "0 4px 24px rgba(0,0,0,0.10)",
-            "textAlign"    : "center",
+            "maxWidth"    : "420px", "margin": "40px auto",
+            "padding"     : "40px", "background": t["card"],
+            "borderRadius": "16px",
+            "boxShadow"   : "0 4px 24px rgba(0,0,0,0.10)",
+            "textAlign"   : "center",
         })
     ], style={"background": t["bg"], "minHeight": "100vh"})
 
 
+def _cred_row(role, color, cred, t):
+    return html.Div([
+        dbc.Badge(role, color=color, className="me-2"),
+        html.Small(cred, style={"color": t["muted"]})
+    ], className="mb-2")
+
+
 # ════════════════════════════════════════════════════════
-# SCREEN 3 — DASHBOARD
+# DASHBOARD
 # ════════════════════════════════════════════════════════
-def dashboard_layout(user: dict, theme: str = "light") -> html.Div:
+def dashboard_layout(
+    user       : dict,
+    theme      : str = "light",
+    age_filter : str = "All",
+    job_filter : str = "All"
+) -> html.Div:
     t    = THEMES[theme]
     role = user["role"]
     dept = user["department"]
     name = user["name"]
 
-    # Get real filtered data from Silver + Gold
-    data = get_data_for_role(role, dept)
-
-    role_colors = {
-        "HR Admin"     : "danger",
-        "Sales Manager": "success",
-        "R&D Manager"  : "primary"
+    data = get_data_for_role(role, dept, age_filter, job_filter)
+    plot_bg = {
+        "plot_bgcolor" : t["card"],
+        "paper_bgcolor": t["card"],
+        "font"         : {"color": t["text"]}
     }
 
     # ── KPI cards ────────────────────────────────────────
-    def kpi_card(label, value, sub, color):
+    def kpi(label, value, sub, color):
         return html.Div([
-            html.P(label, style={
-                "color"        : t["muted"],
-                "fontSize"     : "13px",
-                "marginBottom" : "6px",
-                "fontWeight"   : "500"
-            }),
-            html.H3(value, style={
-                "fontWeight" : "700",
-                "color"      : color,
-                "margin"     : "0 0 4px 0"
-            }),
+            html.P(label,  style={"color": t["muted"], "fontSize": "13px",
+                                  "marginBottom": "6px", "fontWeight": "500"}),
+            html.H3(value, style={"fontWeight": "700", "color": color,
+                                  "margin": "0 0 4px 0"}),
             html.Small(sub, style={"color": t["muted"]})
         ], style={
-            "background"   : t["card"],
-            "borderRadius" : "12px",
-            "padding"      : "20px 24px",
-            "border"       : f"1px solid {t['border']}",
-            "textAlign"    : "center"
+            "background"  : t["card"], "borderRadius": "12px",
+            "padding"     : "20px 24px", "textAlign": "center",
+            "border"      : f"1px solid {t['border']}"
         })
 
     kpi_row = dbc.Row([
-        dbc.Col(kpi_card(
+        dbc.Col(kpi(
             "Total Employees",
             f"{data['total_employees']:,}",
             f"{dept} workforce" if dept != "All" else "Full workforce",
             "#1F70C1"
         ), width=3),
-        dbc.Col(kpi_card(
-            "Overall Attrition Rate (IBM HR Dataset Snapshot)",
+        dbc.Col(kpi(
+            "Overall Attrition Rate",
             f"{data['attrition_rate']}%",
             f"{data['total_attrition']} employees left",
             "#D85A30"
         ), width=3),
-        dbc.Col(kpi_card(
+        dbc.Col(kpi(
             "Avg Monthly Income",
             f"${int(data['avg_monthly_income']):,}",
             "Across selected scope",
             "#1D9E75"
         ), width=3),
-        dbc.Col(kpi_card(
+        dbc.Col(kpi(
             "Avg Tenure",
             f"{data['avg_tenure']} yrs",
             f"Avg age: {data['avg_age']}",
@@ -456,251 +329,287 @@ def dashboard_layout(user: dict, theme: str = "light") -> html.Div:
         ), width=3),
     ], className="mb-4 g-3")
 
-    # ── Chart helpers ────────────────────────────────────
-    plot_bg = {"plot_bgcolor": t["card"], "paper_bgcolor": t["card"],
-               "font": {"color": t["text"]}}
+    # ── Filters ──────────────────────────────────────────
+    # Department pills — HR Admin only
+    dept_pills = html.Div() if dept != "All" else html.Div([
+        html.Span("Department: ",
+                  style={"fontWeight": "500", "color": t["muted"],
+                         "fontSize": "13px", "marginRight": "8px"}),
+        *[dbc.Button(
+            d, id={"type": "dept-pill", "index": d},
+            size="sm", outline=True,
+            color="primary" if d == "All" else "secondary",
+            className="me-2",
+            style={"borderRadius": "20px"}
+        ) for d in ["All", "Sales", "Human Resources", "Research & Development"]]
+    ], className="mb-2")
+
+    # Age pills
+    age_pills = html.Div([
+        html.Span("Age Group: ",
+                  style={"fontWeight": "500", "color": t["muted"],
+                         "fontSize": "13px", "marginRight": "8px"}),
+        *[dbc.Button(
+            a, id={"type": "age-pill", "index": a},
+            size="sm", outline=True,
+            color="primary" if a == age_filter else "secondary",
+            className="me-2",
+            style={"borderRadius": "20px"}
+        ) for a in ["All"] + AGE_GROUPS]
+    ], className="mb-2")
+
+    # Job role dropdown
+    job_roles = ["All"] + ALL_JOB_ROLES
+    if dept != "All":
+        dept_roles = sorted(
+            SILVER[SILVER["department"].str.strip() == dept.strip()]["jobrole"]
+            .dropna().unique().tolist()
+        ) if len(SILVER) > 0 else ALL_JOB_ROLES
+        job_roles = ["All"] + dept_roles
+
+    job_dropdown = html.Div([
+        html.Span("Job Role: ",
+                  style={"fontWeight": "500", "color": t["muted"],
+                         "fontSize": "13px", "marginRight": "8px"}),
+        dcc.Dropdown(
+            id      = "job-filter",
+            options = [{"label": j, "value": j} for j in job_roles],
+            value   = job_filter,
+            clearable = False,
+            style   = {
+                "width"      : "280px",
+                "display"    : "inline-block",
+                "fontSize"   : "13px",
+                "verticalAlign": "middle"
+            }
+        )
+    ], className="mb-3", style={"display": "flex", "alignItems": "center"})
+
+    filter_section = html.Div([
+        dept_pills,
+        age_pills,
+        job_dropdown,
+    ], style={
+        "background"  : t["card"], "padding": "16px 20px",
+        "borderRadius": "10px", "border": f"1px solid {t['border']}",
+        "marginBottom": "20px"
+    })
+
+    # ── Charts ───────────────────────────────────────────
+    dept_df = data["dept_analysis"]
+    age_df  = data["age_analysis"]
+    inc_df  = data["income_analysis"]
+    sat_df  = data["sat_analysis"]
 
     # Chart 1 — Dept: Horizontal bar
-    dept_df  = data["dept_analysis"]
     fig_dept = px.bar(
-        dept_df.sort_values("attrition_rate"),
+        dept_df.sort_values("attrition_rate") if len(dept_df) > 0 else dept_df,
         x           = "attrition_rate",
         y           = "department",
         orientation = "h",
         title       = "Attrition Rate by Department",
-        labels      = {"attrition_rate": "Attrition %", "department": ""},
         color       = "attrition_rate",
         color_continuous_scale = "Reds",
-        text        = "attrition_rate"
+        text        = "attrition_rate",
+        labels      = {
+            "attrition_rate": "Attrition Rate (%)",
+            "department"    : "Department"
+        }
     )
     fig_dept.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
     fig_dept.update_layout(
         **plot_bg,
         coloraxis_showscale = False,
-        margin = dict(l=10, r=40, t=40, b=10)
+        xaxis_title         = "Attrition Rate (%)",
+        yaxis_title         = "Department",
+        margin              = dict(l=10, r=60, t=40, b=10)
     )
 
     # Chart 2 — Age: Funnel
-    age_df  = data["age_analysis"]
     fig_age = go.Figure(go.Funnel(
-        y        = age_df["age_group"].astype(str),
-        x        = age_df["attrition_rate"],
+        y        = age_df["age_group"].astype(str) if len(age_df) > 0 else [],
+        x        = age_df["attrition_rate"]        if len(age_df) > 0 else [],
         textinfo = "label+value+percent initial",
         marker   = {"color": ["#534AB7","#7F77DD","#AFA9EC","#CECBF6","#E8E6FB"]}
     ))
     fig_age.update_layout(
-        title  = "Attrition Rate by Age Group",
+        title       = "Attrition Rate (%) by Age Group",
         **plot_bg,
-        margin = dict(l=10, r=10, t=40, b=10)
+        xaxis_title = "Attrition Rate (%)",
+        yaxis_title = "Age Group",
+        margin      = dict(l=10, r=10, t=40, b=10)
     )
 
     # Chart 3 — Income: Donut
-    inc_df     = data["income_analysis"]
     fig_income = px.pie(
-        inc_df,
+        inc_df if len(inc_df) > 0 else pd.DataFrame({"income_band":[],"attrition_count":[]}),
         names  = "income_band",
         values = "attrition_count",
-        title  = "Attrition Count by Income Band",
+        title  = "Attrition Count by Monthly Income Band (USD)",
         color_discrete_sequence = px.colors.sequential.Blues_r,
         hole   = 0.45
     )
-    fig_income.update_traces(
-        textposition = "inside",
-        textinfo     = "percent+label"
-    )
-    fig_income.update_layout(
-        **plot_bg,
-        margin = dict(l=10, r=10, t=40, b=10)
-    )
+    fig_income.update_traces(textposition="inside", textinfo="percent+label")
+    fig_income.update_layout(**plot_bg, margin=dict(l=10, r=10, t=40, b=10))
 
     # Chart 4 — Satisfaction: Grouped bar
-    sat_df  = data["sat_analysis"]
     fig_sat = px.bar(
-        sat_df,
+        sat_df if len(sat_df) > 0 else pd.DataFrame(),
         x       = "satisfaction_label",
         y       = ["total_employees", "attrition_count"],
-        title   = "Job Satisfaction vs Attrition Count",
+        title   = "Job Satisfaction Level vs Employee & Attrition Count",
         barmode = "group",
         labels  = {
-            "value"              : "Count",
-            "satisfaction_label" : "Satisfaction Level",
+            "value"              : "Number of Employees",
+            "satisfaction_label" : "Job Satisfaction Level",
             "variable"           : "Metric"
         },
-        color_discrete_map = {
-            "total_employees" : "#1F70C1",
-            "attrition_count" : "#D85A30"
+        color_discrete_map={
+            "total_employees": "#1F70C1",
+            "attrition_count": "#D85A30"
         }
     )
     fig_sat.update_layout(
         **plot_bg,
-        margin = dict(l=10, r=10, t=40, b=10),
-        legend = dict(orientation="h", y=-0.25)
+        xaxis_title = "Job Satisfaction Level",
+        yaxis_title = "Number of Employees",
+        margin      = dict(l=10, r=10, t=40, b=10),
+        legend      = dict(orientation="h", y=-0.25)
     )
 
-    card_style = {
-        "background"   : t["card"],
-        "borderRadius" : "12px",
-        "padding"      : "16px",
-        "border"       : f"1px solid {t['border']}",
-        "cursor"       : "pointer",
-        "marginBottom" : "16px"
+    card_s = {
+        "background"  : t["card"], "borderRadius": "12px",
+        "padding"     : "16px", "border": f"1px solid {t['border']}",
+        "cursor"      : "pointer", "marginBottom": "16px"
     }
 
     charts_row = dbc.Row([
         dbc.Col(html.Div(
             dcc.Graph(id="chart-dept",   figure=fig_dept,   config=CFG),
-            style=card_style, id="wrap-dept"
+            style=card_s, id="wrap-dept"
         ), width=6),
         dbc.Col(html.Div(
             dcc.Graph(id="chart-age",    figure=fig_age,    config=CFG),
-            style=card_style, id="wrap-age"
+            style=card_s, id="wrap-age"
         ), width=6),
         dbc.Col(html.Div(
             dcc.Graph(id="chart-income", figure=fig_income, config=CFG),
-            style=card_style, id="wrap-income"
+            style=card_s, id="wrap-income"
         ), width=6),
         dbc.Col(html.Div(
             dcc.Graph(id="chart-sat",    figure=fig_sat,    config=CFG),
-            style=card_style, id="wrap-sat"
+            style=card_s, id="wrap-sat"
         ), width=6),
     ], className="g-3")
 
-    # ── Insights section ─────────────────────────────────
-    insights_section = html.Div([
-        html.H5([
-            html.I(className="bi bi-lightbulb-fill me-2",
-                   style={"color": "#F0A500"}),
-            "Key Insights"
-        ], style={"fontWeight": "600", "color": t["text"], "marginBottom": "12px"}),
-        html.Div([
-            dbc.Alert(insight, color="light", className="mb-2",
-                      style={
-                          "border"     : f"1px solid {t['border']}",
-                          "color"      : t["text"],
-                          "background" : t["card"]
-                      })
-            for insight in data["insights"]
-        ])
+    # ── Insights ─────────────────────────────────────────
+    insights = html.Div([
+        html.H5([html.I(className="bi bi-lightbulb-fill me-2",
+                        style={"color": "#F0A500"}), "Key Insights"],
+                style={"fontWeight": "600", "color": t["text"],
+                       "marginBottom": "12px"}),
+        *[dbc.Alert(i, color="light", className="mb-2",
+                    style={"border": f"1px solid {t['border']}",
+                           "color": t["text"], "background": t["card"]})
+          for i in data["insights"]]
     ], style={
-        "background"   : t["card"],
-        "borderRadius" : "12px",
-        "padding"      : "20px",
-        "border"       : f"1px solid {t['border']}",
-        "marginTop"    : "8px"
+        "background"  : t["card"], "borderRadius": "12px",
+        "padding"     : "20px", "border": f"1px solid {t['border']}",
+        "marginTop"   : "8px"
     })
 
-    # ── Modal for chart popup ─────────────────────────────
+    # ── Modal ────────────────────────────────────────────
     modal = dbc.Modal([
         dbc.ModalHeader(dbc.ModalTitle(id="modal-title")),
-        dbc.ModalBody(
-            dcc.Graph(id="modal-chart", config=CFG,
-                      style={"height": "500px"})
-        ),
+        dbc.ModalBody(dcc.Graph(id="modal-chart", config=CFG,
+                                style={"height": "500px"})),
     ], id="chart-modal", size="xl", is_open=False)
 
     return html.Div([
-        # ── Navbar ───────────────────────────────────────
+        # Navbar
         html.Div([
             dbc.Container([
                 html.Div([
-                    # Left — IBM branding
                     html.Div([
                         html.Span("IBM", style={
-                            "background"    : "#1F70C1",
-                            "color"         : "#FFFFFF",
-                            "padding"       : "4px 12px",
-                            "borderRadius"  : "4px",
-                            "fontWeight"    : "900",
-                            "letterSpacing" : "2px",
-                            "marginRight"   : "10px",
-                            "fontSize"      : "16px"
+                            "background"   : "#1F70C1", "color": "#FFFFFF",
+                            "padding"      : "4px 12px", "borderRadius": "4px",
+                            "fontWeight"   : "900", "letterSpacing": "2px",
+                            "marginRight"  : "10px", "fontSize": "16px"
                         }),
-                        html.Span(
-                            "HR Attrition Intelligence Portal",
-                            style={"fontWeight": "600", "color": t["text"],
-                                   "fontSize": "15px"}
-                        ),
+                        html.Span("HR Attrition Intelligence Portal",
+                                  style={"fontWeight": "600", "color": t["text"],
+                                         "fontSize": "15px"}),
                     ], style={"display": "flex", "alignItems": "center"}),
 
-                    # Right — role, theme, logout
                     html.Div([
-                        dbc.Badge(
-                            role,
-                            color     = role_colors.get(role, "secondary"),
-                            className = "me-3 p-2"
-                        ),
-                        html.Span(
-                            f"👤 {name}",
-                            style={"fontSize": "13px", "marginRight": "16px",
-                                   "color": t["text"]}
-                        ),
+                        # Person icon + role name (issue 7)
+                        html.Span([
+                            html.I(className="bi bi-person-circle me-2",
+                                   style={"fontSize": "18px"}),
+                            html.Strong(f"{role}",
+                                        style={"color": t["text"],
+                                               "fontSize": "14px"})
+                        ], style={"marginRight": "16px",
+                                  "color": t["text"]}),
+
                         dbc.Switch(
                             id        = "theme-toggle",
                             label     = "🌙 Dark",
                             value     = theme == "dark",
-                            className = "me-3 mt-1"
+                            className = "me-3 mt-1",
+                            style     = {"color": t["text"]}
                         ),
                         dbc.Button(
-                            [html.I(className="bi bi-box-arrow-right me-1"), "Logout"],
-                            id    = "logout-btn",
-                            size  = "sm",
-                            color = "outline-secondary"
+                            [html.I(className="bi bi-box-arrow-right me-1"),
+                             "Logout"],
+                            id="logout-btn", size="sm",
+                            color="outline-secondary"
                         ),
                     ], style={"display": "flex", "alignItems": "center"}),
                 ], style={
-                    "display"        : "flex",
-                    "justifyContent" : "space-between",
-                    "alignItems"     : "center",
-                    "width"          : "100%"
+                    "display"       : "flex",
+                    "justifyContent": "space-between",
+                    "alignItems"    : "center",
+                    "width"         : "100%"
                 })
             ], fluid=True)
         ], style={
-            "background"   : t["navbar"],
-            "borderBottom" : f"1px solid {t['border']}",
-            "padding"      : "12px 0",
-            "marginBottom" : "24px",
-            "boxShadow"    : "0 1px 4px rgba(0,0,0,0.06)"
+            "background"  : t["navbar"],
+            "borderBottom": f"1px solid {t['border']}",
+            "padding"     : "12px 0", "marginBottom": "24px",
+            "boxShadow"   : "0 1px 4px rgba(0,0,0,0.06)"
         }),
 
-        # ── Main content ──────────────────────────────────
         dbc.Container([
-            # Restriction banner for managers
+            # Restriction banner
             dbc.Alert([
                 html.I(className="bi bi-funnel-fill me-2"),
-                f"Viewing {dept} department data only — "
+                f"Viewing {dept} department — "
                 f"{data['total_employees']} employees in scope."
             ], color="warning", className="mb-3") if dept != "All" else html.Div(),
 
-            # About banner
+            # Info banner
             dbc.Alert([
                 html.Strong("IBM HR Attrition Intelligence Portal  |  "),
-                html.Span("IBM Employee Attrition Dataset  |  "),
                 html.Em("Dataset Source: IBM HR Analytics Employee Attrition Dataset")
             ], color="info", className="mb-4"),
 
             kpi_row,
+            filter_section,
             charts_row,
-
             html.Br(),
-            insights_section,
+            insights,
             modal,
 
-            # Footer
-            html.Footer(
-                html.P(
-                    "Dataset Source: IBM HR Analytics Employee Attrition Dataset | "
-                    "Built on Databricks Medallion Architecture (Bronze → Silver → Gold)",
-                    style={
-                        "textAlign"  : "center",
-                        "color"      : t["muted"],
-                        "fontSize"   : "12px",
-                        "padding"    : "24px 0 8px 0",
-                    }
-                )
-            )
-        ], fluid=True),
-
-        html.Div(id="logout-redirect")
+            html.Footer(html.P(
+                "Dataset Source: IBM HR Analytics Employee Attrition Dataset | "
+                "Built on Databricks Medallion Architecture (Bronze → Silver → Gold)",
+                style={"textAlign": "center", "color": t["muted"],
+                       "fontSize": "12px", "padding": "24px 0 8px 0"}
+            )),
+            html.Div(id="logout-redirect")
+        ], fluid=True)
     ], style={"background": t["bg"], "minHeight": "100vh"})
 
 
@@ -711,9 +620,9 @@ def dashboard_layout(user: dict, theme: str = "light") -> html.Div:
 # Page router
 @app.callback(
     Output("page-content", "children"),
-    Input("url", "pathname"),
-    State("user-store",  "data"),
-    State("theme-store", "data"),
+    Input("url",           "pathname"),
+    State("user-store",    "data"),
+    State("theme-store",   "data"),
 )
 def render_page(pathname, user, theme):
     theme = theme or "light"
@@ -742,10 +651,10 @@ def handle_login(n, email, password):
     user = login(email, password)
     if user:
         return user, "", "/dashboard"
-    return no_update, "Invalid email or password. Please try again.", no_update
+    return no_update, "Invalid email or password.", no_update
 
 
-# Password toggle
+# Password show/hide
 @app.callback(
     Output("login-password", "type"),
     Output("toggle-pwd",     "className"),
@@ -770,7 +679,7 @@ def logout(n):
     return None, "/"
 
 
-# Theme toggle
+# Theme toggle — fix issue 2
 @app.callback(
     Output("theme-store",  "data"),
     Output("page-content", "children", allow_duplicate=True),
@@ -785,7 +694,22 @@ def toggle_theme(is_dark, user):
     return theme, no_update
 
 
-# Chart modal popup
+# Filters — age pills + job dropdown rebuild dashboard
+@app.callback(
+    Output("page-content", "children", allow_duplicate=True),
+    Input("job-filter",    "value"),
+    State("user-store",    "data"),
+    State("theme-store",   "data"),
+    prevent_initial_call=True
+)
+def apply_job_filter(job_filter, user, theme):
+    if not user:
+        return no_update
+    return dashboard_layout(user, theme or "light",
+                             job_filter=job_filter or "All")
+
+
+# Chart modal popup — fix issue 4
 @app.callback(
     Output("chart-modal", "is_open"),
     Output("modal-title", "children"),
@@ -799,10 +723,9 @@ def toggle_theme(is_dark, user):
     State("theme-store",  "data"),
     prevent_initial_call=True
 )
-def open_modal(d_click, a_click, i_click, s_click, is_open, user, theme):
+def open_modal(d_c, a_c, i_c, s_c, is_open, user, theme):
     if not user:
         return False, no_update, no_update
-
     theme    = theme or "light"
     t        = THEMES[theme]
     plot_bg  = {"plot_bgcolor": t["card"], "paper_bgcolor": t["card"],
@@ -810,45 +733,53 @@ def open_modal(d_click, a_click, i_click, s_click, is_open, user, theme):
     triggered = ctx.triggered_id
     data      = get_data_for_role(user["role"], user["department"])
 
-    if triggered == "chart-dept" and d_click:
+    if triggered == "chart-dept" and d_c:
         df  = data["dept_analysis"]
         fig = px.bar(
             df.sort_values("attrition_rate"),
-            x="attrition_rate", y="department",
-            orientation="h", color="attrition_rate",
-            text="attrition_rate",
+            x="attrition_rate", y="department", orientation="h",
+            color="attrition_rate", text="attrition_rate",
             color_continuous_scale="Reds",
-            labels={"attrition_rate": "Attrition %", "department": ""}
+            labels={"attrition_rate": "Attrition Rate (%)",
+                    "department": "Department"}
         )
         fig.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
-        fig.update_layout(**plot_bg, coloraxis_showscale=False)
+        fig.update_layout(**plot_bg, coloraxis_showscale=False,
+                          xaxis_title="Attrition Rate (%)",
+                          yaxis_title="Department")
         return True, "Attrition by Department — Full Detail", fig
 
-    if triggered == "chart-age" and a_click:
+    if triggered == "chart-age" and a_c:
         df  = data["age_analysis"]
         fig = px.bar(
             df, x="age_group", y="attrition_rate",
             color="attrition_rate", text="attrition_rate",
             color_continuous_scale="Purples",
-            labels={"attrition_rate": "Attrition %", "age_group": "Age Group"}
+            labels={"attrition_rate": "Attrition Rate (%)",
+                    "age_group": "Age Group"}
         )
         fig.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
-        fig.update_layout(**plot_bg, coloraxis_showscale=False)
+        fig.update_layout(**plot_bg, coloraxis_showscale=False,
+                          xaxis_title="Age Group",
+                          yaxis_title="Attrition Rate (%)")
         return True, "Attrition by Age Group — Full Detail", fig
 
-    if triggered == "chart-income" and i_click:
+    if triggered == "chart-income" and i_c:
         df  = data["income_analysis"]
         fig = px.bar(
             df, x="income_band", y="attrition_rate",
             color="attrition_rate", text="attrition_rate",
             color_continuous_scale="Blues",
-            labels={"attrition_rate": "Attrition %", "income_band": "Income Band"}
+            labels={"attrition_rate": "Attrition Rate (%)",
+                    "income_band": "Monthly Income Band (USD)"}
         )
         fig.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
-        fig.update_layout(**plot_bg, coloraxis_showscale=False)
+        fig.update_layout(**plot_bg, coloraxis_showscale=False,
+                          xaxis_title="Monthly Income Band (USD)",
+                          yaxis_title="Attrition Rate (%)")
         return True, "Attrition by Income Band — Full Detail", fig
 
-    if triggered == "chart-sat" and s_click:
+    if triggered == "chart-sat" and s_c:
         df  = data["sat_analysis"]
         fig = px.bar(
             df, x="satisfaction_label",
@@ -858,9 +789,13 @@ def open_modal(d_click, a_click, i_click, s_click, is_open, user, theme):
                 "total_employees": "#1F70C1",
                 "attrition_count": "#D85A30"
             },
-            labels={"value": "Count", "satisfaction_label": "Satisfaction"}
+            labels={"value": "Number of Employees",
+                    "satisfaction_label": "Job Satisfaction Level",
+                    "variable": "Metric"}
         )
-        fig.update_layout(**plot_bg)
+        fig.update_layout(**plot_bg,
+                          xaxis_title="Job Satisfaction Level",
+                          yaxis_title="Number of Employees")
         return True, "Job Satisfaction vs Attrition — Full Detail", fig
 
     return False, no_update, no_update
