@@ -382,7 +382,7 @@ def dashboard_layout(
         xaxis_title         = "Attrition Rate (%)",
         yaxis_title         = "Department",
         xaxis_range         = [0, 30],
-        height              = 300,
+        height              = 450,
         margin              = dict(l=10, r=80, t=40, b=10)
     )
 
