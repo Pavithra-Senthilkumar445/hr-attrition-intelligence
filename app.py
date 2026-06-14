@@ -644,16 +644,25 @@ def toggle_theme(is_dark):
 
 @app.callback(
     Output("age-filter-store", "data"),
-    Input({"type": "age-pill", "index": ALL}, "n_clicks"),
+    Input({"type": "age-pill", "index": ALL}, "n_clicks_timestamp"),
+    State({"type": "age-pill", "index": ALL}, "id"),
     prevent_initial_call=True
 )
-def apply_age_filter(n_clicks):
-    if not any(n for n in (n_clicks or []) if n):
+def apply_age_filter(timestamps, ids):
+    if not timestamps or not ids:
         return no_update
-    triggered = ctx.triggered_id
-    if not triggered:
+
+    clicked = [
+        (timestamp, button_id)
+        for timestamp, button_id in zip(timestamps, ids)
+        if timestamp and timestamp > 0
+    ]
+
+    if not clicked:
         return no_update
-    return triggered["index"]
+
+    latest = max(clicked, key=lambda item: item[0])[1]
+    return latest["index"]
 
 
 @app.callback(
