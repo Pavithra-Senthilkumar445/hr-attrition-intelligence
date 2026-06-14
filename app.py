@@ -573,12 +573,12 @@ def dashboard_layout(
 @app.callback(
     Output("page-content", "children"),
     Input("url",           "pathname"),
+    Input("theme-store",   "data"),
+    Input("age-filter-store",  "data"),
+    Input("dept-filter-store", "data"),
     State("user-store",    "data"),
-    State("theme-store",   "data"),
-    State("age-filter-store",  "data"),
-    State("dept-filter-store", "data"),
 )
-def render_page(pathname, user, theme, age_f, dept_f):
+def render_page(pathname, theme, age_f, dept_f, user):
     theme = theme or "light"
     if pathname == "/login":
         return login_layout(theme)
@@ -634,68 +634,39 @@ def logout(n):
 
 @app.callback(
     Output("theme-store",  "data"),
-    Output("page-content", "children", allow_duplicate=True),
     Input("theme-toggle",  "value"),
-    State("user-store",        "data"),
-    State("age-filter-store",  "data"),
-    State("dept-filter-store", "data"),
     prevent_initial_call=True
 )
-def toggle_theme(is_dark, user, age_f, dept_f):
-    theme = "dark" if is_dark else "light"
-    if user:
-        return theme, dashboard_layout(
-            user, theme,
-            age_filter  = age_f  or "All",
-            active_dept = dept_f or "All"
-        )
-    return theme, no_update
+def toggle_theme(is_dark):
+    return "dark" if is_dark else "light"
 
 
 @app.callback(
     Output("age-filter-store", "data"),
-    Output("page-content", "children", allow_duplicate=True),
     Input({"type": "age-pill", "index": ALL}, "n_clicks"),
-    State("user-store",        "data"),
-    State("theme-store",       "data"),
-    State("dept-filter-store", "data"),
     prevent_initial_call=True
 )
-def apply_age_filter(n_clicks, user, theme, dept_f):
-    if not user or not any(n for n in (n_clicks or []) if n):
-        return no_update, no_update
+def apply_age_filter(n_clicks):
+    if not any(n for n in (n_clicks or []) if n):
+        return no_update
     triggered = ctx.triggered_id
     if not triggered:
-        return no_update, no_update
-    age_selected = triggered["index"]
-    return age_selected, dashboard_layout(
-        user, theme or "light",
-        age_filter  = age_selected,
-        active_dept = dept_f or "All"
-    )
+        return no_update
+    return triggered["index"]
 
 
 @app.callback(
     Output("dept-filter-store", "data"),
-    Output("page-content", "children", allow_duplicate=True),
     Input({"type": "dept-pill", "index": ALL}, "n_clicks"),
-    State("user-store",       "data"),
-    State("theme-store",      "data"),
-    State("age-filter-store", "data"),
     prevent_initial_call=True
 )
-def apply_dept_filter(n_clicks, user, theme, age_f):
-    if not user or not any(n for n in (n_clicks or []) if n):
-        return no_update, no_update
+def apply_dept_filter(n_clicks):
+    if not any(n for n in (n_clicks or []) if n):
+        return no_update
     triggered = ctx.triggered_id
     if not triggered:
-        return no_update, no_update
-    dept_selected = triggered["index"]
-    return dept_selected, dashboard_layout(
-        user, theme or "light",
-        age_filter  = age_f or "All",
-        active_dept = dept_selected
-    )
+        return no_update
+    return triggered["index"]
 
 
 @app.callback(
