@@ -1,3 +1,4 @@
+import pandas as pd
 import dash
 from dash import dcc, html, Input, Output, State, no_update, ctx, ALL
 import dash_bootstrap_components as dbc
