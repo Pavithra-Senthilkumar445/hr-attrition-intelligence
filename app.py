@@ -9,7 +9,6 @@ from data import get_data_for_role, GOLD_OVERVIEW, AGE_GROUPS
 
 CFG = {"displayModeBar": False, "scrollZoom": False}
 
-CURRENT_USER = None
 
 THEMES = {
     "light": {
