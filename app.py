@@ -40,7 +40,7 @@ server = app.server
 server.secret_key = "hr-attrition-intelligence-secret-key"
 
 app.layout = html.Div([
-    dcc.Store(id="user-store",        storage_type="local"),
+    dcc.Store(id="user-store",        storage_type="session"),
     dcc.Store(id="theme-store",       storage_type="session", data="light"),
     dcc.Store(id="age-filter-store",  storage_type="session", data="All"),
     dcc.Store(id="dept-filter-store", storage_type="session", data="All"),
