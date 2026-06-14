@@ -181,28 +181,25 @@ Dash provides greater flexibility for implementing role-based login, custom UI c
 ## 📸 Screenshots
 
 ### Landing Page
-
-![Landing Page](screenshots/landing.png)
+![Landing Page](Landing_page.png)
 
 ### Login Page
-
-![Login Page](screenshots/login.png)
+![Login Page](Login_page.png)
 
 ### HR Admin Dashboard
+![HR Admin Dashboard](HR_Admin_page.png)
 
-![HR Admin Dashboard](screenshots/admin_dashboard.png)
+### HR Manager Dashboard
+![HR Manager Dashboard](HR_Manager_page.png)
 
 ### Sales Manager Dashboard
+![Sales Manager Dashboard](Sales_Manager_page.png)
 
-![Sales Manager Dashboard](screenshots/sales_dashboard.png)
+### R&D Manager Dashboard
+![R&D Manager Dashboard](R&D_Manager_page.png)
 
-### Dark Theme
-
-![Dark Theme](screenshots/dark_theme.png)
-
-### Chart Popup Modal
-
-![Chart Popup](screenshots/chart_popup.png)
+### Dark Theme Dashboard
+![Dark Theme Dashboard](Dark_Theme_.png)
 
 ---
 
