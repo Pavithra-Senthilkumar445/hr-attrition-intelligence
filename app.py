@@ -667,16 +667,25 @@ def apply_age_filter(timestamps, ids):
 
 @app.callback(
     Output("dept-filter-store", "data"),
-    Input({"type": "dept-pill", "index": ALL}, "n_clicks"),
+    Input({"type": "dept-pill", "index": ALL}, "n_clicks_timestamp"),
+    State({"type": "dept-pill", "index": ALL}, "id"),
     prevent_initial_call=True
 )
-def apply_dept_filter(n_clicks):
-    if not any(n for n in (n_clicks or []) if n):
+def apply_dept_filter(timestamps, ids):
+    if not timestamps or not ids:
         return no_update
-    triggered = ctx.triggered_id
-    if not triggered:
+
+    clicked = [
+        (timestamp, button_id)
+        for timestamp, button_id in zip(timestamps, ids)
+        if timestamp and timestamp > 0
+    ]
+
+    if not clicked:
         return no_update
-    return triggered["index"]
+
+    latest = max(clicked, key=lambda item: item[0])[1]
+    return latest["index"]
 
 
 @app.callback(
