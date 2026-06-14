@@ -736,196 +736,167 @@ def dashboard_layout(
 
     # Chart 1 — Dept horizontal bar
 
-    fig_dept = px.bar(
+        google_colors = ["#4285F4", "#DB4437", "#F4B400", "#0F9D58", "#AB47BC"]
+    grid_color = "#E8EAED" if theme == "light" else "#30363D"
 
-        dept_df.sort_values("attrition_rate") if len(dept_df) > 0 else dept_df,
+    def google_layout(fig, height=360, legend=False):
+        fig.update_layout(
+            **plot_bg,
+            height=height,
+            title={"x": 0.02, "xanchor": "left", "font": {"size": 17}},
+            margin=dict(l=40, r=28, t=58, b=46),
+            font={"family": "Arial, sans-serif", "size": 12, "color": t["text"]},
+            hoverlabel={"bgcolor": t["card"], "font_size": 12},
+            showlegend=legend,
+            legend=dict(orientation="h", yanchor="bottom", y=-0.22, xanchor="left", x=0)
+        )
+        fig.update_xaxes(showgrid=True, gridcolor=grid_color, zeroline=False, linecolor=grid_color)
+        fig.update_yaxes(showgrid=False, zeroline=False, linecolor=grid_color)
+        return fig
 
-        x="attrition_rate", y="department", orientation="h",
+    # Chart 1 - Department attrition rate, larger full-width chart
+    dept_plot = dept_df.sort_values("attrition_rate") if len(dept_df) > 0 else dept_df
+    dept_max = dept_plot["attrition_rate"].max() if len(dept_plot) > 0 else 0
 
-        title="Attrition Rate by Department",
-
-        color="attrition_rate", color_continuous_scale="Reds",
-
-        text="attrition_rate",
-
-        labels={"attrition_rate": "Attrition Rate (%)", "department": "Department"}
-
-    )
-
-    fig_dept.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
-
-    fig_dept.update_layout(
-
-        **plot_bg,
-
-        coloraxis_showscale = False,
-
-        xaxis_title         = "Attrition Rate (%)",
-
-        yaxis_title         = "Department",
-
-        xaxis_range         = [0, 30],
-
-        height              = 300,
-
-        margin              = dict(l=10, r=80, t=40, b=10)
-
-    )
-
-
-
-    # Chart 2 — Age funnel
-
-    fig_age = go.Figure(go.Funnel(
-
-        y        = age_df["age_group"].astype(str) if len(age_df) > 0 else [],
-
-        x        = age_df["attrition_rate"]        if len(age_df) > 0 else [],
-
-        textinfo = "label+value+percent initial",
-
-        marker   = {"color": ["#534AB7","#7F77DD","#AFA9EC","#CECBF6","#E8E6FB"]}
-
+    fig_dept = go.Figure(go.Bar(
+        x=dept_plot["attrition_rate"] if len(dept_plot) > 0 else [],
+        y=dept_plot["department"] if len(dept_plot) > 0 else [],
+        orientation="h",
+        marker={
+            "color": dept_plot["attrition_rate"] if len(dept_plot) > 0 else [],
+            "colorscale": [
+                [0.0, "#FCE8E6"],
+                [0.45, "#F4B400"],
+                [0.7, "#DB4437"],
+                [1.0, "#8B0000"],
+            ],
+            "line": {"width": 0}
+        },
+        text=[f"{v:.1f}%" for v in dept_plot["attrition_rate"]] if len(dept_plot) > 0 else [],
+        textposition="outside",
+        hovertemplate="<b>%{y}</b><br>Attrition Rate: %{x:.2f}%<extra></extra>"
     ))
 
-    fig_age.update_layout(
-
-        title       = "Attrition Rate (%) by Age Group",
-
-        **plot_bg,
-
-        xaxis_title = "Attrition Rate (%)",
-
-        yaxis_title = "Age Group",
-
-        margin      = dict(l=10, r=10, t=40, b=10)
-
+    fig_dept = google_layout(fig_dept, height=430)
+    fig_dept.update_layout(title="Attrition Rate by Department")
+    fig_dept.update_xaxes(
+        title="Attrition Rate (%)",
+        range=[0, max(30, dept_max + 5)]
     )
+    fig_dept.update_yaxes(title="")
 
+    # Chart 2 - Age group attrition rate as clean columns
+    fig_age = go.Figure(go.Bar(
+        x=age_df["age_group"].astype(str) if len(age_df) > 0 else [],
+        y=age_df["attrition_rate"] if len(age_df) > 0 else [],
+        marker={"color": google_colors[0], "line": {"width": 0}},
+        text=[f"{v:.1f}%" for v in age_df["attrition_rate"]] if len(age_df) > 0 else [],
+        textposition="outside",
+        hovertemplate="<b>Age %{x}</b><br>Attrition Rate: %{y:.2f}%<extra></extra>"
+    ))
 
+    fig_age = google_layout(fig_age, height=360)
+    fig_age.update_layout(title="Attrition Rate by Age Group")
+    fig_age.update_xaxes(title="")
+    fig_age.update_yaxes(title="Attrition Rate (%)")
 
-    # Chart 3 — Income donut
-
-    fig_income = px.pie(
-
-        inc_df if len(inc_df) > 0 else pd.DataFrame(
-
-            {"income_band": [], "attrition_count": []}),
-
-        names="income_band", values="attrition_count",
-
-        title="Attrition Count by Monthly Income Band (USD)",
-
-        color_discrete_sequence=px.colors.sequential.Blues_r,
-
-        hole=0.45
-
-    )
-
-    fig_income.update_traces(textposition="inside", textinfo="percent+label")
-
-    fig_income.update_layout(**plot_bg, margin=dict(l=10, r=10, t=40, b=10))
-
-
-
-    # Chart 4 — Satisfaction grouped bar
-
-    fig_sat = px.bar(
-
-        sat_df if len(sat_df) > 0 else pd.DataFrame(),
-
-        x="satisfaction_label",
-
-        y=["total_employees", "attrition_count"],
-
-        title="Job Satisfaction Level vs Number of Employees",
-
-        barmode="group",
-
-        labels={
-
-            "value"              : "Number of Employees",
-
-            "satisfaction_label" : "Job Satisfaction Level",
-
-            "variable"           : "Metric"
-
+    # Chart 3 - Income band attrition count as treemap
+    fig_income = go.Figure(go.Treemap(
+        labels=inc_df["income_band"].astype(str) if len(inc_df) > 0 else [],
+        parents=[""] * len(inc_df) if len(inc_df) > 0 else [],
+        values=inc_df["attrition_count"] if len(inc_df) > 0 else [],
+        texttemplate="<b>%{label}</b><br>%{value} leavers<br>%{percentRoot:.1%}",
+        marker={
+            "colors": google_colors[:len(inc_df)] if len(inc_df) > 0 else [],
+            "line": {"color": t["card"], "width": 3}
         },
+        hovertemplate="<b>%{label}</b><br>Attrition Count: %{value}<extra></extra>"
+    ))
 
-        color_discrete_map={
+    fig_income = google_layout(fig_income, height=360)
+    fig_income.update_layout(title="Attrition Count by Monthly Income Band")
 
-            "total_employees": "#1F70C1",
+    # Chart 4 - Satisfaction comparison with attrition-rate line
+    fig_sat = go.Figure()
 
-            "attrition_count": "#D85A30"
+    fig_sat.add_trace(go.Bar(
+        x=sat_df["satisfaction_label"].astype(str) if len(sat_df) > 0 else [],
+        y=sat_df["total_employees"] if len(sat_df) > 0 else [],
+        name="Total Employees",
+        marker={"color": google_colors[0], "line": {"width": 0}},
+        hovertemplate="<b>%{x}</b><br>Total Employees: %{y}<extra></extra>"
+    ))
 
-        }
+    fig_sat.add_trace(go.Bar(
+        x=sat_df["satisfaction_label"].astype(str) if len(sat_df) > 0 else [],
+        y=sat_df["attrition_count"] if len(sat_df) > 0 else [],
+        name="Attrition Count",
+        marker={"color": google_colors[1], "line": {"width": 0}},
+        hovertemplate="<b>%{x}</b><br>Attrition Count: %{y}<extra></extra>"
+    ))
 
-    )
+    fig_sat.add_trace(go.Scatter(
+        x=sat_df["satisfaction_label"].astype(str) if len(sat_df) > 0 else [],
+        y=sat_df["attrition_rate"] if len(sat_df) > 0 else [],
+        name="Attrition Rate %",
+        mode="lines+markers+text",
+        yaxis="y2",
+        line={"color": google_colors[3], "width": 3},
+        marker={"size": 8, "color": google_colors[3]},
+        text=[f"{v:.1f}%" for v in sat_df["attrition_rate"]] if len(sat_df) > 0 else [],
+        textposition="top center",
+        hovertemplate="<b>%{x}</b><br>Attrition Rate: %{y:.2f}%<extra></extra>"
+    ))
 
+    fig_sat = google_layout(fig_sat, height=360, legend=True)
     fig_sat.update_layout(
-
-        **plot_bg,
-
-        xaxis_title = "Job Satisfaction Level",
-
-        yaxis_title = "Number of Employees",
-
-        margin      = dict(l=10, r=10, t=40, b=10),
-
-        legend      = dict(orientation="h", y=-0.25)
-
+        title="Job Satisfaction vs Attrition",
+        barmode="group",
+        yaxis2={
+            "title": "Attrition Rate (%)",
+            "overlaying": "y",
+            "side": "right",
+            "showgrid": False,
+            "zeroline": False,
+            "linecolor": grid_color,
+            "tickfont": {"color": t["muted"]},
+            "titlefont": {"color": t["muted"]}
+        }
     )
-
-
+    fig_sat.update_xaxes(title="")
+    fig_sat.update_yaxes(title="Employees")
 
     card_s = {
-
-        "background"  : t["card"], "borderRadius": "12px",
-
-        "padding"     : "16px",    "border": f"1px solid {t['border']}",
-
-        "cursor"      : "pointer", "marginBottom": "16px"
-
+        "background": t["card"],
+        "borderRadius": "8px",
+        "padding": "10px",
+        "border": f"1px solid {t['border']}",
+        "boxShadow": "0 1px 3px rgba(60,64,67,0.15)",
+        "cursor": "pointer",
+        "marginBottom": "16px"
     }
 
-
-
     charts_row = dbc.Row([
-
         dbc.Col(html.Div(
-
-            dcc.Graph(id="chart-dept",   figure=fig_dept,   config=CFG),
-
+            dcc.Graph(id="chart-dept", figure=fig_dept, config=CFG),
             style=card_s
-
-        ), width=6),
+        ), width=12),
 
         dbc.Col(html.Div(
-
-            dcc.Graph(id="chart-age",    figure=fig_age,    config=CFG),
-
+            dcc.Graph(id="chart-age", figure=fig_age, config=CFG),
             style=card_s
-
-        ), width=6),
+        ), width=4),
 
         dbc.Col(html.Div(
-
             dcc.Graph(id="chart-income", figure=fig_income, config=CFG),
-
             style=card_s
-
-        ), width=6),
+        ), width=4),
 
         dbc.Col(html.Div(
-
-            dcc.Graph(id="chart-sat",    figure=fig_sat,    config=CFG),
-
+            dcc.Graph(id="chart-sat", figure=fig_sat, config=CFG),
             style=card_s
-
-        ), width=6),
-
+        ), width=4),
     ], className="g-3")
-
 
 
     # ── Insights ─────────────────────────────────────────
