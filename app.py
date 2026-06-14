@@ -37,7 +37,7 @@ app = dash.Dash(
 server = app.server
 
 app.layout = html.Div([
-    dcc.Store(id="user-store",        storage_type="session"),
+    dcc.Store(id="user-store",        storage_type="local"),
     dcc.Store(id="theme-store",       storage_type="session", data="light"),
     dcc.Store(id="age-filter-store",  storage_type="session", data="All"),
     dcc.Store(id="dept-filter-store", storage_type="session", data="All"),
@@ -598,7 +598,6 @@ def render_page(pathname, theme, age_f, dept_f, user):
         return login_layout(theme)
 
     return landing_layout(theme)
-
 
 @app.callback(
     Output("user-store",    "data"),
