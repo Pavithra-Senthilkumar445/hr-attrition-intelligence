@@ -6,16 +6,18 @@ def hash_password(password: str) -> str:
 def verify_password(password: str, hashed: str) -> bool:
     return hash_password(password) == hashed
 
-# Role based users
-# HR Admin    → sees all departments
-# Sales Mgr   → sees Sales only
-# R&D Manager → sees Research & Development only
 USERS = {
     "admin@hrapp.com": {
         "password"   : hash_password("Admin@123"),
         "role"       : "HR Admin",
         "department" : "All",
         "name"       : "HR Admin"
+    },
+    "hr@hrapp.com": {
+        "password"   : hash_password("HR@123"),
+        "role"       : "HR Manager",
+        "department" : "Human Resources",
+        "name"       : "HR Manager"
     },
     "sales@hrapp.com": {
         "password"   : hash_password("Sales@123"),
